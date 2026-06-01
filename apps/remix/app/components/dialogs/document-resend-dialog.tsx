@@ -1,5 +1,6 @@
 import { useSession } from '@documenso/lib/client-only/providers/session';
 import { getRecipientType } from '@documenso/lib/client-only/recipient-type';
+import { AppError } from '@documenso/lib/errors/app-error';
 import type { TRecipientLite } from '@documenso/lib/types/recipient';
 import { recipientAbbreviation } from '@documenso/lib/utils/recipient-formatter';
 import type { Document } from '@documenso/prisma/types/document-legacy-schema';
@@ -30,6 +31,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import * as z from 'zod';
 
 import { useCurrentTeam } from '~/providers/team';
+import { getLimitErrorToastContent } from '~/utils/limit-error-toast';
 
 import { StackAvatar } from '../general/stack-avatar';
 
@@ -99,9 +101,14 @@ export const DocumentResendDialog = ({ document, recipients }: DocumentResendDia
 
       setIsOpen(false);
     } catch (err) {
+      const error = AppError.parseError(err);
+      const limitToast = getLimitErrorToastContent(error.code);
+
       toast({
-        title: _(msg`Something went wrong`),
-        description: _(msg`This document could not be re-sent at this time. Please try again.`),
+        title: limitToast ? _(limitToast.title) : _(msg`Something went wrong`),
+        description: limitToast
+          ? _(limitToast.description)
+          : _(msg`This document could not be re-sent at this time. Please try again.`),
         variant: 'destructive',
         duration: 7500,
       });

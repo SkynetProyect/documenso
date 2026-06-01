@@ -1,4 +1,5 @@
 import { getRecipientType } from '@documenso/lib/client-only/recipient-type';
+import { AppError } from '@documenso/lib/errors/app-error';
 import type { TEnvelope } from '@documenso/lib/types/envelope';
 import type { TEnvelopeRecipientLite } from '@documenso/lib/types/recipient';
 import { recipientAbbreviation } from '@documenso/lib/utils/recipient-formatter';
@@ -26,6 +27,8 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
+import { getLimitErrorToastContent } from '~/utils/limit-error-toast';
+
 import { StackAvatar } from '../general/stack-avatar';
 
 export type EnvelopeRedistributeDialogProps = {
@@ -47,7 +50,7 @@ export const EnvelopeRedistributeDialog = ({ envelope, trigger }: EnvelopeRedist
   const recipients = envelope.recipients;
 
   const { toast } = useToast();
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
 
   const [isOpen, setIsOpen] = useState(false);
 
@@ -77,9 +80,14 @@ export const EnvelopeRedistributeDialog = ({ envelope, trigger }: EnvelopeRedist
 
       setIsOpen(false);
     } catch (err) {
+      const error = AppError.parseError(err);
+      const limitToast = getLimitErrorToastContent(error.code);
+
       toast({
-        title: t`Something went wrong`,
-        description: t`This envelope could not be resent at this time. Please try again.`,
+        title: limitToast ? i18n._(limitToast.title) : t`Something went wrong`,
+        description: limitToast
+          ? i18n._(limitToast.description)
+          : t`This envelope could not be resent at this time. Please try again.`,
         variant: 'destructive',
         duration: 7500,
       });

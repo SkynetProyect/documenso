@@ -23,6 +23,7 @@ import { useNavigate, useParams } from 'react-router';
 import { match } from 'ts-pattern';
 
 import { useCurrentTeam } from '~/providers/team';
+import { getLimitErrorToastContent } from '~/utils/limit-error-toast';
 
 export type DocumentUploadButtonLegacyProps = {
   className?: string;
@@ -129,6 +130,19 @@ export const DocumentUploadButtonLegacy = ({ className, type }: DocumentUploadBu
       const error = AppError.parseError(err);
 
       console.error(err);
+
+      const limitToast = getLimitErrorToastContent(error.code);
+
+      if (limitToast) {
+        toast({
+          title: _(limitToast.title),
+          description: _(limitToast.description),
+          variant: 'destructive',
+          duration: 7500,
+        });
+
+        return;
+      }
 
       const errorMessage = match(error.code)
         .with('INVALID_DOCUMENT_FILE', () => msg`You cannot upload encrypted PDFs.`)

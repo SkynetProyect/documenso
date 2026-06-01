@@ -38,6 +38,8 @@ import { useNavigate } from 'react-router';
 import { match } from 'ts-pattern';
 import * as z from 'zod';
 
+import { getLimitErrorToastContent } from '~/utils/limit-error-toast';
+
 const ZAddRecipientsForNewDocumentSchema = z.object({
   distributeDocument: z.boolean(),
   useCustomDocument: z.boolean().default(false),
@@ -180,6 +182,18 @@ export function TemplateUseDialog({
       await navigate(documentPath);
     } catch (err) {
       const error = AppError.parseError(err);
+
+      const limitToast = getLimitErrorToastContent(error.code);
+
+      if (limitToast) {
+        toast({
+          title: _(limitToast.title),
+          description: _(limitToast.description),
+          variant: 'destructive',
+        });
+
+        return;
+      }
 
       const errorMessage = match(error.code)
         .with('DOCUMENT_SEND_FAILED', () => msg`The document was created but could not be sent to recipients.`)

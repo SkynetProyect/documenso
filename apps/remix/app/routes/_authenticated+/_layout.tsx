@@ -1,8 +1,10 @@
 import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
 import { OrganisationProvider } from '@documenso/lib/client-only/providers/organisation';
 import { useSession } from '@documenso/lib/client-only/providers/session';
+import { getOrganisationQuotaFlags } from '@documenso/lib/server-only/rate-limit/get-organisation-quota-flags';
 import { getSiteSettings } from '@documenso/lib/server-only/site-settings/get-site-settings';
 import { SITE_SETTINGS_BANNER_ID } from '@documenso/lib/server-only/site-settings/schemas/banner';
+import { prisma } from '@documenso/prisma';
 import { cn } from '@documenso/ui/lib/utils';
 import { Button } from '@documenso/ui/primitives/button';
 import { msg } from '@lingui/core/macro';
@@ -13,6 +15,7 @@ import { AppBanner } from '~/components/general/app-banner';
 import { Header } from '~/components/general/app-header';
 import { GenericErrorLayout } from '~/components/general/generic-error-layout';
 import { OrganisationBillingBanner } from '~/components/general/organisations/organisation-billing-banner';
+import { OrganisationQuotaBanner } from '~/components/general/organisations/organisation-quota-banner';
 import { VerifyEmailBanner } from '~/components/general/verify-email-banner';
 import { TeamProvider } from '~/providers/team';
 
@@ -25,7 +28,7 @@ import type { Route } from './+types/_layout';
  */
 export const shouldRevalidate = () => false;
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
   const [session, banner] = await Promise.all([
     getOptionalSession(request),
     getSiteSettings().then((settings) => settings.find((setting) => setting.id === SITE_SETTINGS_BANNER_ID)),
@@ -35,13 +38,46 @@ export async function loader({ request }: Route.LoaderArgs) {
     throw redirect('/signin');
   }
 
+  const emptyQuotaFlags = {
+    isDocumentQuotaExceeded: false,
+    isEmailQuotaExceeded: false,
+    isApiQuotaExceeded: false,
+  };
+
+  const orgUrl = params.orgUrl;
+  const teamUrl = params.teamUrl;
+
+  // Resolve the current organisation from the URL (scoped to membership) so we
+  // can compute the quota banner flags. Returns empty flags when no org context.
+  const currentOrganisation =
+    orgUrl || teamUrl
+      ? await prisma.organisation.findFirst({
+          where: {
+            members: {
+              some: {
+                userId: session.user.id,
+              },
+            },
+            ...(orgUrl ? { url: orgUrl } : { teams: { some: { url: teamUrl } } }),
+          },
+          select: {
+            id: true,
+          },
+        })
+      : null;
+
+  const quotaFlags = currentOrganisation
+    ? await getOrganisationQuotaFlags({ organisationId: currentOrganisation.id })
+    : emptyQuotaFlags;
+
   return {
     banner,
+    quotaFlags,
   };
 }
 
 export default function Layout({ loaderData, params, matches }: Route.ComponentProps) {
-  const { banner } = loaderData;
+  const { banner, quotaFlags } = loaderData;
 
   const { user, organisations } = useSession();
 
@@ -108,6 +144,8 @@ export default function Layout({ loaderData, params, matches }: Route.ComponentP
     <OrganisationProvider organisation={currentOrganisation}>
       <TeamProvider team={currentTeam || null}>
         <OrganisationBillingBanner />
+
+        <OrganisationQuotaBanner quotaFlags={quotaFlags} />
 
         {!user.emailVerified && <VerifyEmailBanner email={user.email} />}
 
