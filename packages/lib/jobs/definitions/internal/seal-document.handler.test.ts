@@ -4,7 +4,7 @@ const inputPdfBytes = new Uint8Array([0, 1, 2]);
 const savedPdfBytes = new Uint8Array([9]);
 const overlayBytes = new Uint8Array([3]);
 const legacySaveBytes = new Uint8Array([4]);
-const signedPdfBytes = new Uint8Array([5]);
+const signedPdfBytes = Buffer.from([5]);
 
 vi.mock('@documenso/lib/server-only/pdf/add-rejection-stamp-to-pdf', () => ({
   addRejectionStampToPdf: vi.fn(),
@@ -83,6 +83,7 @@ vi.mock('../../client', () => ({
 }));
 vi.mock('nanoid', () => ({
   nanoid: vi.fn(() => 'nanoid'),
+  customAlphabet: vi.fn(() => vi.fn(() => 'alphaid')),
 }));
 
 import { PDFDocument } from '@cantoo/pdf-lib';
@@ -123,16 +124,15 @@ const createPdfDoc = (pages = [createPage()]) => {
   };
 
   pdfDocumentLoad.mockResolvedValue({
-    getForm: vi.fn(() => ({ flatten: vi.fn() })),
+    getForm: vi.fn(() => ({ flatten: vi.fn() }) as unknown as import('@cantoo/pdf-lib').PDFForm),
     save: vi.fn(async () => legacySaveBytes),
-  });
+  } as unknown as import('@cantoo/pdf-lib').PDFDocument);
 
   pdfLoad.mockImplementation(async (data: unknown) => {
     if (data === overlayBytes) {
-      return { overlay: true };
+      return { overlay: true } as unknown as PDF;
     }
-
-    return pdfDoc;
+    return pdfDoc as unknown as PDF;
   });
 
   return pdfDoc;
@@ -156,9 +156,9 @@ const baseEnvelopeItem = {
 beforeEach(() => {
   vi.clearAllMocks();
   mockedSignPdf.mockResolvedValue(signedPdfBytes);
-  mockedPutPdfFileServerSide.mockResolvedValue({ documentData: { id: 'new-123' } });
-  mockedInsertFieldInPDFV2.mockResolvedValue(overlayBytes);
-  mockedAddRejectionStampToPdf.mockResolvedValue(undefined);
+  mockedPutPdfFileServerSide.mockResolvedValue({ documentData: { id: 'new-123' }, filePageCount: 1 });
+  mockedInsertFieldInPDFV2.mockResolvedValue(Buffer.from(overlayBytes) as Buffer);
+  mockedAddRejectionStampToPdf.mockResolvedValue(undefined as unknown as PDF);
 });
 
 describe('decorateAndSignPdf', () => {
@@ -199,7 +199,7 @@ describe('decorateAndSignPdf', () => {
 
   it('T-03 certificateDoc:PDF(2p) → copyPagesFrom called with [0,1]', async () => {
     const pdfDoc = createPdfDoc();
-    const certificateDoc = { getPageCount: vi.fn(() => 2) };
+    const certificateDoc = { getPageCount: vi.fn(() => 2) } as unknown as PDF;
 
     await decorateAndSignPdf({
       envelope: baseEnvelope,
@@ -234,7 +234,7 @@ describe('decorateAndSignPdf', () => {
 
   it('T-05 auditLogDoc:PDF(3p) → copyPagesFrom called with [0,1,2]', async () => {
     const pdfDoc = createPdfDoc();
-    const auditLogDoc = { getPageCount: vi.fn(() => 3) };
+    const auditLogDoc = { getPageCount: vi.fn(() => 3) } as unknown as PDF;
 
     await decorateAndSignPdf({
       envelope: baseEnvelope,
@@ -393,7 +393,7 @@ describe('decorateAndSignPdf', () => {
   });
 
   it('T-14 internalVersion:1 → V2 block skipped entirely', async () => {
-    const pdfDoc = createPdfDoc();
+    createPdfDoc();
 
     await decorateAndSignPdf({
       envelope: { ...baseEnvelope, internalVersion: 1, useLegacyFieldInsertion: false },
@@ -450,7 +450,7 @@ describe('decorateAndSignPdf', () => {
     { rotation: 270, expected: { x: 0, y: 400 } },
   ])('T-17..T-20 rotation:$rotation → drawPage with expected translate', async ({ rotation, expected }) => {
     const page = createPage(rotation as number);
-    const pdfDoc = createPdfDoc([page]);
+    createPdfDoc([page]);
 
     await decorateAndSignPdf({
       envelope: { ...baseEnvelope, internalVersion: 2, useLegacyFieldInsertion: false },
@@ -507,7 +507,7 @@ describe('decorateAndSignPdf', () => {
   });
 
   it('T-23 PDF.load rejects → throws, nothing else called', async () => {
-    const pdfDoc = createPdfDoc();
+    createPdfDoc();
     pdfLoad.mockRejectedValueOnce(new Error('bad pdf'));
 
     await expect(
@@ -550,7 +550,7 @@ describe('decorateAndSignPdf', () => {
   it('T-25 certificateDoc present, copyPagesFrom rejects → throws', async () => {
     const pdfDoc = createPdfDoc();
     pdfDoc.copyPagesFrom.mockRejectedValueOnce(new Error('copy fail'));
-    const certificateDoc = { getPageCount: vi.fn(() => 1) };
+    const certificateDoc = { getPageCount: vi.fn(() => 1) } as unknown as PDF;
 
     await expect(
       decorateAndSignPdf({
@@ -569,7 +569,7 @@ describe('decorateAndSignPdf', () => {
   it('T-26 auditLogDoc present, copyPagesFrom rejects → throws', async () => {
     const pdfDoc = createPdfDoc();
     pdfDoc.copyPagesFrom.mockRejectedValueOnce(new Error('copy fail'));
-    const auditLogDoc = { getPageCount: vi.fn(() => 1) };
+    const auditLogDoc = { getPageCount: vi.fn(() => 1) } as unknown as PDF;
 
     await expect(
       decorateAndSignPdf({
