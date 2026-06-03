@@ -1,0 +1,46 @@
+{
+  "function": "decorateAndSignPdf",
+  "optionsType": "DecorateAndSignPdfOptions",
+  "parameters": [
+    {
+      "name": "envelope",
+      "type": "Pick<Envelope, 'id' | 'title' | 'useLegacyFieldInsertion' | 'internalVersion'>",
+      "description": "Envelope metadata used for signing, field insertion, and version-specific PDF handling."
+    },
+    {
+      "name": "envelopeItem",
+      "type": "EnvelopeItem & { documentData: DocumentData }",
+      "description": "The envelope item that includes the current document data and metadata required for saving the signed PDF."
+    },
+    {
+      "name": "envelopeItemFields",
+      "type": "Field[]",
+      "description": "The list of fields to insert into the PDF before signing."
+    },
+    {
+      "name": "isRejected",
+      "type": "boolean",
+      "description": "Indicates whether the document is rejected and should receive a rejection stamp."
+    },
+    {
+      "name": "rejectionReason",
+      "type": "string",
+      "description": "The reason text to render on the rejection stamp when the document is rejected."
+    },
+    {
+      "name": "pdfData",
+      "type": "Uint8Array",
+      "description": "The raw PDF bytes to be decorated, signed, and potentially augmented with certificate or audit log pages."
+    },
+    {
+      "name": "certificateDoc",
+      "type": "PDF | null",
+      "description": "An optional PDF document containing the certificate pages to attach to the final signed PDF."
+    },
+    {
+      "name": "auditLogDoc",
+      "type": "PDF | null",
+      "description": "An optional PDF document containing audit log pages to attach to the final signed PDF."
+    }
+  ]
+}

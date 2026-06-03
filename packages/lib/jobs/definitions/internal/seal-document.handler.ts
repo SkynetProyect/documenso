@@ -342,7 +342,7 @@ type DecorateAndSignPdfOptions = {
 /**
  * Normalize, flatten and insert fields into a PDF document.
  */
-const decorateAndSignPdf = async ({
+export const decorateAndSignPdf = async ({
   envelope,
   envelopeItem,
   envelopeItemFields,
@@ -401,44 +401,47 @@ const decorateAndSignPdf = async ({
 
   // Handle V2 envelope insertions.
   if (envelope.internalVersion === 2) {
-    const fieldsGroupedByPage = groupBy(envelopeItemFields, (field) => field.page);
+    //20
+    const fieldsGroupedByPage = groupBy(envelopeItemFields, (field) => field.page); //21
 
     for (const [pageNumber, fields] of Object.entries(fieldsGroupedByPage)) {
+      //22
       const page = pdfDoc.getPage(Number(pageNumber) - 1);
 
       if (!page) {
         throw new Error(`Page ${pageNumber} does not exist`);
       }
 
-      const pageWidth = page.width;
-      const pageHeight = page.height;
+      const pageWidth = page.width; //26
+      const pageHeight = page.height; //27
 
       const overlayBytes = await insertFieldInPDFV2({
+        //28
         pageWidth,
         pageHeight,
         fields,
       });
 
-      const overlayPdf = await PDF.load(overlayBytes);
+      const overlayPdf = await PDF.load(overlayBytes); //29
 
-      const embeddedPage = await pdfDoc.embedPage(overlayPdf, 0);
+      const embeddedPage = await pdfDoc.embedPage(overlayPdf, 0); //30
 
       // Rotate the page to the orientation that the react-pdf renders on the frontend.
       let translateX = 0;
       let translateY = 0;
 
       switch (page.rotation) {
-        case 90:
-          translateX = pageHeight;
-          translateY = 0;
+        case 90: //34
+          translateX = pageHeight; //35
+          translateY = 0; //36
           break;
-        case 180:
-          translateX = pageWidth;
-          translateY = pageHeight;
+        case 180: //37
+          translateX = pageWidth; //38
+          translateY = pageHeight; //39
           break;
-        case 270:
-          translateX = 0;
-          translateY = pageWidth;
+        case 270: //40
+          translateX = 0; //41
+          translateY = pageWidth; //42
           break;
       }
 
