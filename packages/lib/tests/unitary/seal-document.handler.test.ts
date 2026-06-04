@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import * as sinon from 'sinon';
 import sinonChai from 'sinon-chai';
-import { afterEach, beforeEach, describe, it } from 'vitest';
+import { beforeEach, describe, it } from 'vitest';
 
 chai.use(chaiAsPromised);
 chai.use(sinonChai);
@@ -45,51 +45,51 @@ vi.mock('@cantoo/pdf-lib', () => ({
     load: sinon.stub(),
   },
 }));
-vi.mock('../../../server-only/htmltopdf/get-audit-logs-pdf', () => ({
+vi.mock('../../server-only/htmltopdf/get-audit-logs-pdf', () => ({
   getAuditLogsPdf: sinon.stub(),
 }));
-vi.mock('../../../server-only/htmltopdf/get-certificate-pdf', () => ({
+vi.mock('../../server-only/htmltopdf/get-certificate-pdf', () => ({
   getCertificatePdf: sinon.stub(),
 }));
-vi.mock('../../../server-only/pdf/insert-field-in-pdf-v1', () => ({
+vi.mock('../../server-only/pdf/insert-field-in-pdf-v1', () => ({
   insertFieldInPDFV1: sinon.stub(),
 }));
-vi.mock('../../../server-only/pdf/insert-field-in-pdf-v2', () => ({
+vi.mock('../../server-only/pdf/insert-field-in-pdf-v2', () => ({
   insertFieldInPDFV2: sinon.stub(),
 }));
-vi.mock('../../../server-only/pdf/legacy-insert-field-in-pdf', () => ({
+vi.mock('../../server-only/pdf/legacy-insert-field-in-pdf', () => ({
   legacy_insertFieldInPDF: sinon.stub(),
 }));
-vi.mock('../../../server-only/team/get-team-settings', () => ({
+vi.mock('../../server-only/team/get-team-settings', () => ({
   getTeamSettings: sinon.stub(),
 }));
-vi.mock('../../../server-only/webhooks/trigger/trigger-webhook', () => ({
+vi.mock('../../server-only/webhooks/trigger/trigger-webhook', () => ({
   triggerWebhook: sinon.stub(),
 }));
-vi.mock('../../../universal/upload/put-file.server', () => ({
+vi.mock('../../universal/upload/put-file.server', () => ({
   putPdfFileServerSide: sinon.stub(),
 }));
-vi.mock('../../../universal/upload/get-file.server', () => ({
+vi.mock('../../universal/upload/get-file.server', () => ({
   getFileServerSide: sinon.stub(),
 }));
-vi.mock('../../../constants/app', () => ({
+vi.mock('../../constants/app', () => ({
   NEXT_PRIVATE_USE_PLAYWRIGHT_PDF: sinon.stub().returns(false),
 }));
-vi.mock('../../../utils/advanced-fields-helpers', () => ({
+vi.mock('../../utils/advanced-fields-helpers', () => ({
   fieldsContainUnsignedRequiredField: sinon.stub(),
 }));
-vi.mock('../../../utils/document', () => ({
+vi.mock('../../utils/document', () => ({
   isDocumentCompleted: sinon.stub(),
 }));
-vi.mock('../../../utils/document-audit-logs', () => ({
+vi.mock('../../utils/document-audit-logs', () => ({
   createDocumentAuditLogData: sinon.stub(),
 }));
-vi.mock('../../../types/document-audit-logs', () => ({
+vi.mock('../../types/document-audit-logs', () => ({
   DOCUMENT_AUDIT_LOG_TYPE: {
     DOCUMENT: 'DOCUMENT',
   },
 }));
-vi.mock('../../../utils/envelope', () => ({
+vi.mock('../../utils/envelope', () => ({
   mapDocumentIdToSecondaryId: sinon.stub(),
 }));
 vi.mock('../../client', () => ({
@@ -106,11 +106,11 @@ import { PDFDocument } from '@cantoo/pdf-lib';
 import { addRejectionStampToPdf } from '@documenso/lib/server-only/pdf/add-rejection-stamp-to-pdf';
 import { signPdf } from '@documenso/signing';
 import { PDF } from '@libpdf/core';
-import { insertFieldInPDFV1 } from '../../../server-only/pdf/insert-field-in-pdf-v1';
-import { insertFieldInPDFV2 } from '../../../server-only/pdf/insert-field-in-pdf-v2';
-import { legacy_insertFieldInPDF } from '../../../server-only/pdf/legacy-insert-field-in-pdf';
-import { putPdfFileServerSide } from '../../../universal/upload/put-file.server';
-import { decorateAndSignPdf } from './seal-document.handler';
+import { decorateAndSignPdf } from '../../jobs/definitions/internal/seal-document.handler';
+import { insertFieldInPDFV1 } from '../../server-only/pdf/insert-field-in-pdf-v1';
+import { insertFieldInPDFV2 } from '../../server-only/pdf/insert-field-in-pdf-v2';
+import { legacy_insertFieldInPDF } from '../../server-only/pdf/legacy-insert-field-in-pdf';
+import { putPdfFileServerSide } from '../../universal/upload/put-file.server';
 
 // ─── Sinon stub references ────────────────────────────────────────────────────
 
@@ -189,15 +189,22 @@ const baseArgs = {
 // ─── Setup / teardown ─────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  sinon.reset();
+  // Reset call history and behaviour on every stub created via vi.mock()
+  [
+    pdfLoad,
+    pdfDocumentLoad,
+    stubSignPdf,
+    stubPutPdfFileServerSide,
+    stubInsertFieldInPDFV1,
+    stubInsertFieldInPDFV2,
+    stubLegacyInsertFieldInPDF,
+    stubAddRejectionStampToPdf,
+  ].forEach((s) => s.reset());
+
   stubSignPdf.resolves(signedPdfBytes);
   stubPutPdfFileServerSide.resolves({ documentData: { id: 'new-123' }, filePageCount: 1 });
   stubInsertFieldInPDFV2.resolves(overlayBytes);
   stubAddRejectionStampToPdf.resolves();
-});
-
-afterEach(() => {
-  sinon.restore();
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
