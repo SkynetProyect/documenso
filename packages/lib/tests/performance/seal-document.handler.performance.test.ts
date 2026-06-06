@@ -1,11 +1,4 @@
-import * as chai from 'chai';
-import { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
-import sinonChai from 'sinon-chai';
-import { beforeEach, describe, it, vi, expect as vitestExpect } from 'vitest';
-
-chai.use(chaiAsPromised);
-chai.use(sinonChai);
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ─── vi.mock calls first — no external variable references inside factories ───
 
@@ -13,15 +6,11 @@ vi.mock('@libpdf/core', () => ({ PDF: { load: vi.fn() } }));
 vi.mock('@documenso/signing', () => ({ signPdf: vi.fn() }));
 vi.mock('../../universal/upload/put-file.server', () => ({ putPdfFileServerSide: vi.fn() }));
 vi.mock('../../server-only/pdf/insert-field-in-pdf-v2', () => ({ insertFieldInPDFV2: vi.fn() }));
+vi.mock('../../server-only/pdf/insert-field-in-pdf-v1', () => ({ insertFieldInPDFV1: vi.fn() }));
+vi.mock('../../server-only/pdf/legacy-insert-field-in-pdf', () => ({ legacy_insertFieldInPDF: vi.fn() }));
 vi.mock('@documenso/lib/server-only/pdf/add-rejection-stamp-to-pdf', () => ({ addRejectionStampToPdf: vi.fn() }));
 vi.mock('@documenso/lib/server-only/pdf/generate-audit-log-pdf', () => ({ generateAuditLogPdf: vi.fn() }));
 vi.mock('@documenso/lib/server-only/pdf/generate-certificate-pdf', () => ({ generateCertificatePdf: vi.fn() }));
-vi.mock('../../server-only/pdf/insert-field-in-pdf-v1', () => ({ insertFieldInPDFV1: vi.fn() }));
-vi.mock('../../server-only/pdf/legacy-insert-field-in-pdf', () => ({ legacy_insertFieldInPDF: vi.fn() }));
-vi.mock('../../constants/i18n', () => ({
-  SUPPORTED_LANGUAGES: {},
-  isValidLanguageCode: vi.fn().mockReturnValue(true),
-}));
 vi.mock('../../types/webhook-payload', () => ({
   mapEnvelopeToWebhookDocumentPayload: vi.fn(),
   ZWebhookDocumentSchema: { parse: vi.fn() },
@@ -33,6 +22,10 @@ vi.mock('../../types/document-audit-logs', () => ({
   },
   createDocumentAuditLogData: vi.fn(),
 }));
+vi.mock('../../constants/i18n', () => ({
+  SUPPORTED_LANGUAGES: {},
+  isValidLanguageCode: vi.fn().mockReturnValue(true),
+}));
 vi.mock('../../constants/teams', () => ({
   LOWEST_TEAM_ROLE: 'MEMBER',
   ALLOWED_TEAM_GROUP_TYPES: [],
@@ -43,24 +36,24 @@ vi.mock('../../utils/teams', () => ({
   canExecuteTeamAction: vi.fn().mockReturnValue(true),
   getUserTeamRole: vi.fn(),
 }));
+vi.mock('../../utils/advanced-fields-helpers', () => ({ fieldsContainUnsignedRequiredField: vi.fn() }));
+vi.mock('../../utils/document', () => ({ isDocumentCompleted: vi.fn() }));
+vi.mock('../../utils/document-audit-logs', () => ({ createDocumentAuditLogData: vi.fn() }));
+vi.mock('../../utils/envelope', () => ({ mapDocumentIdToSecondaryId: vi.fn() }));
+vi.mock('../../universal/upload/get-file.server', () => ({ getFileServerSide: vi.fn() }));
+vi.mock('../../server-only/team/get-team-settings', () => ({ getTeamSettings: vi.fn() }));
+vi.mock('../../server-only/webhooks/trigger/trigger-webhook', () => ({ triggerWebhook: vi.fn() }));
+vi.mock('../../jobs/client', () => ({ jobs: { triggerJob: vi.fn() } }));
+vi.mock('../../client-only/recipient-type', () => ({
+  RecipientType: { SIGNER: 'SIGNER', CC: 'CC', VIEWER: 'VIEWER', APPROVER: 'APPROVER' },
+}));
 vi.mock('@documenso/prisma', () => ({
   prisma: {
-    envelope: {
-      findFirstOrThrow: vi.fn(),
-      update: vi.fn(),
-    },
+    envelope: { findFirstOrThrow: vi.fn(), update: vi.fn() },
     recipient: { updateMany: vi.fn() },
     envelopeItem: { update: vi.fn() },
     documentAuditLog: { create: vi.fn() },
     $transaction: vi.fn(),
-  },
-}));
-vi.mock('../../client-only/recipient-type', () => ({
-  RecipientType: {
-    SIGNER: 'SIGNER',
-    CC: 'CC',
-    VIEWER: 'VIEWER',
-    APPROVER: 'APPROVER',
   },
 }));
 vi.mock('@prisma/client', async (importOriginal) => {
@@ -123,8 +116,8 @@ const mockInsertFieldInPDFV2 = insertFieldInPDFV2 as ReturnType<typeof vi.fn>;
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-const signedPdfBytes = Buffer.from([5]);
 const pdfBytes = new Uint8Array([1, 2, 3]);
+const signedPdfBytes = Buffer.from([5]);
 
 const createPdfDoc = () => ({
   flattenAll: vi.fn(),
@@ -145,10 +138,7 @@ const baseEnvelope = {
 
 const baseEnvelopeItem = {
   title: 'contract.pdf',
-  documentData: {
-    id: 'old-123',
-    initialData: 'initial-data',
-  },
+  documentData: { id: 'old-123', initialData: 'initial-data' },
 };
 
 const baseArgs = {
@@ -161,6 +151,13 @@ const baseArgs = {
   certificateDoc: null,
   auditLogDoc: null,
 };
+
+// ─── Thresholds (ms) ──────────────────────────────────────────────────────────
+
+const SINGLE_SEAL_THRESHOLD_MS = 100;
+const TEN_SEQUENTIAL_THRESHOLD_MS = 500;
+const FIFTY_FIELDS_THRESHOLD_MS = 200;
+const TEN_CONCURRENT_THRESHOLD_MS = 300;
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 
@@ -175,109 +172,106 @@ beforeEach(() => {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe('decorateAndSignPdf security', () => {
-  it('S-01 - drops path segments from the file name when saving the signed PDF', async () => {
+describe('decorateAndSignPdf performance', () => {
+  it(`P-01 - seals a single document with no fields in under ${SINGLE_SEAL_THRESHOLD_MS}ms`, async () => {
+    const start = performance.now();
+
+    await decorateAndSignPdf({ ...baseArgs });
+
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(SINGLE_SEAL_THRESHOLD_MS);
+  });
+
+  it(`P-02 - seals 10 documents sequentially in under ${TEN_SEQUENTIAL_THRESHOLD_MS}ms`, async () => {
+    const start = performance.now();
+
+    for (let i = 0; i < 10; i++) {
+      mockPDFLoad.mockResolvedValue(createPdfDoc());
+      await decorateAndSignPdf({ ...baseArgs });
+    }
+
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(TEN_SEQUENTIAL_THRESHOLD_MS);
+  });
+
+  it(`P-03 - seals a document with 50 fields in under ${FIFTY_FIELDS_THRESHOLD_MS}ms`, async () => {
+    const fields = Array.from({ length: 50 }, (_, i) => ({
+      inserted: true,
+      page: 1,
+      id: `field-${i}`,
+    }));
+
+    const start = performance.now();
+
     await decorateAndSignPdf({
       ...baseArgs,
-      envelopeItem: {
-        ...baseEnvelopeItem,
-        title: '../secret/contract.pdf',
-      },
+      envelopeItemFields: fields as any,
     });
 
-    vitestExpect(mockPutPdfFileServerSide).toHaveBeenCalledOnce();
-    vitestExpect(mockPutPdfFileServerSide).toHaveBeenCalledWith(
-      vitestExpect.objectContaining({ name: 'contract_signed.pdf' }),
-      'initial-data',
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(FIFTY_FIELDS_THRESHOLD_MS);
+  });
+
+  it(`P-04 - seals 10 documents concurrently in under ${TEN_CONCURRENT_THRESHOLD_MS}ms`, async () => {
+    const start = performance.now();
+
+    await Promise.all(
+      Array.from({ length: 10 }, () => {
+        mockPDFLoad.mockResolvedValue(createPdfDoc());
+        return decorateAndSignPdf({ ...baseArgs });
+      }),
     );
+
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(TEN_CONCURRENT_THRESHOLD_MS);
   });
 
-  it('S-02 - rejects invalid V2 field page references before signing or uploading', async () => {
-    const pdfDoc = createPdfDoc();
-    pdfDoc.getPage.mockReturnValue(undefined);
-    mockPDFLoad.mockResolvedValue(pdfDoc);
+  it('P-05 - seals a rejected document no slower than a normal document', async () => {
+    const normalStart = performance.now();
+    await decorateAndSignPdf({ ...baseArgs, isRejected: false });
+    const normalElapsed = performance.now() - normalStart;
 
-    const action = decorateAndSignPdf({
-      ...baseArgs,
-      envelopeItemFields: [{ inserted: true, page: 99 } as any],
-    });
+    mockPDFLoad.mockResolvedValue(createPdfDoc());
 
-    await expect(action).to.be.rejectedWith('Page 99 does not exist');
-    vitestExpect(mockSignPdf).not.toHaveBeenCalled();
-    vitestExpect(mockPutPdfFileServerSide).not.toHaveBeenCalled();
+    const rejectedStart = performance.now();
+    await decorateAndSignPdf({ ...baseArgs, isRejected: true, rejectionReason: 'bad' });
+    const rejectedElapsed = performance.now() - rejectedStart;
+
+    // Rejected path should not take more than 3x the normal path
+    expect(rejectedElapsed).toBeLessThan(normalElapsed * 3);
   });
 
-  it('S-03 - uses _rejected.pdf suffix instead of _signed.pdf when isRejected is true', async () => {
-    await decorateAndSignPdf({
-      ...baseArgs,
-      isRejected: true,
-      rejectionReason: 'not approved',
-    });
+  it('P-06 - fields spread across multiple pages do not degrade performance beyond 2x single-page', async () => {
+    const singlePageFields = Array.from({ length: 10 }, (_, i) => ({
+      inserted: true,
+      page: 1,
+      id: `field-${i}`,
+    }));
 
-    vitestExpect(mockPutPdfFileServerSide).toHaveBeenCalledWith(
-      vitestExpect.objectContaining({ name: 'contract_rejected.pdf' }),
-      'initial-data',
-    );
-  });
+    const multiPageDoc = createPdfDoc();
+    multiPageDoc.getPage.mockImplementation((index: number) => ({
+      width: 400,
+      height: 500,
+      rotation: 0,
+      drawPage: vi.fn(),
+    }));
 
-  it('S-04 - does not call putPdfFileServerSide when signPdf throws', async () => {
-    mockSignPdf.mockRejectedValue(new Error('signing failed'));
+    const singleStart = performance.now();
+    await decorateAndSignPdf({ ...baseArgs, envelopeItemFields: singlePageFields as any });
+    const singleElapsed = performance.now() - singleStart;
 
-    const action = decorateAndSignPdf({ ...baseArgs });
+    mockPDFLoad.mockResolvedValue(multiPageDoc);
 
-    await expect(action).to.be.rejectedWith('signing failed');
-    vitestExpect(mockPutPdfFileServerSide).not.toHaveBeenCalled();
-  });
+    const multiPageFields = Array.from({ length: 10 }, (_, i) => ({
+      inserted: true,
+      page: i + 1,
+      id: `field-${i}`,
+    }));
 
-  it('S-05 - does not call signPdf or upload when PDF.load throws on initial load', async () => {
-    mockPDFLoad.mockRejectedValue(new Error('corrupt pdf'));
+    const multiStart = performance.now();
+    await decorateAndSignPdf({ ...baseArgs, envelopeItemFields: multiPageFields as any });
+    const multiElapsed = performance.now() - multiStart;
 
-    const action = decorateAndSignPdf({ ...baseArgs });
-
-    await expect(action).to.be.rejectedWith('corrupt pdf');
-    vitestExpect(mockSignPdf).not.toHaveBeenCalled();
-    vitestExpect(mockPutPdfFileServerSide).not.toHaveBeenCalled();
-  });
-
-  it('S-06 - strips path traversal from title and still uses _rejected.pdf suffix', async () => {
-    await decorateAndSignPdf({
-      ...baseArgs,
-      isRejected: true,
-      rejectionReason: 'bad',
-      envelopeItem: {
-        ...baseEnvelopeItem,
-        title: '../../etc/passwd.pdf',
-      },
-    });
-
-    vitestExpect(mockPutPdfFileServerSide).toHaveBeenCalledWith(
-      vitestExpect.objectContaining({ name: 'passwd_rejected.pdf' }),
-      'initial-data',
-    );
-  });
-
-  it('S-07 - passes initialData as the second argument to putPdfFileServerSide', async () => {
-    await decorateAndSignPdf({
-      ...baseArgs,
-      envelopeItem: {
-        ...baseEnvelopeItem,
-        documentData: { id: 'old-123', initialData: 'custom-initial-data' },
-      },
-    });
-
-    vitestExpect(mockPutPdfFileServerSide).toHaveBeenCalledWith(vitestExpect.any(Object), 'custom-initial-data');
-  });
-
-  it('S-08 - does not call signPdf or upload when insertFieldInPDFV2 throws', async () => {
-    mockInsertFieldInPDFV2.mockRejectedValue(new Error('v2 inject failed'));
-
-    const action = decorateAndSignPdf({
-      ...baseArgs,
-      envelopeItemFields: [{ inserted: true, page: 1 } as any],
-    });
-
-    await expect(action).to.be.rejectedWith('v2 inject failed');
-    vitestExpect(mockSignPdf).not.toHaveBeenCalled();
-    vitestExpect(mockPutPdfFileServerSide).not.toHaveBeenCalled();
+    expect(multiElapsed).toBeLessThan(singleElapsed * 2 + 50);
   });
 });

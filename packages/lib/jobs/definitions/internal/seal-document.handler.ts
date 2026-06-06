@@ -427,10 +427,12 @@ export const decorateAndSignPdf = async ({
       const embeddedPage = await pdfDoc.embedPage(overlayPdf, 0); //30
 
       // Rotate the page to the orientation that the react-pdf renders on the frontend.
-      let translateX = 0;
-      let translateY = 0;
+      let translateX = 0; //1
+      let translateY = 0; //32
 
-      switch (page.rotation) {
+      switch (
+        page.rotation //33
+      ) {
         case 90: //34
           translateX = pageHeight; //35
           translateY = 0; //36

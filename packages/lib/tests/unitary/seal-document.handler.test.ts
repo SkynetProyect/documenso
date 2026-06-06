@@ -7,7 +7,6 @@ import { beforeEach, describe, it } from 'vitest';
 
 chai.use(chaiAsPromised);
 chai.use(sinonChai);
-
 // ─── Test doubles ────────────────────────────────────────────────────────────
 
 const inputPdfBytes = new Uint8Array([0, 1, 2]);
