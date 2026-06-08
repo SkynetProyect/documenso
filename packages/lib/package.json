@@ -12,6 +12,9 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:cov": "jest --config jest.config.ts --coverage",
+    "cov": "jest --config jest.config.ts --coverage",
+    "sonar": "sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL",
     "clean": "rimraf node_modules"
   },
   "dependencies": {
@@ -47,6 +50,7 @@
     "csv-parse": "^6.1.0",
     "inngest": "^3.54.0",
     "ioredis": "^5.10.1",
+    "jest": "^30.4.2",
     "jose": "^6.1.2",
     "konva": "^10.0.9",
     "kysely": "0.29.2",
@@ -79,10 +83,12 @@
     "@types/pg": "^8.15.6",
     "@types/sinon": "^21.0.1",
     "@types/sinon-chai": "^4.0.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "chai": "^6.2.2",
     "chai-as-promised": "^8.0.2",
     "sinon": "^22.0.0",
     "sinon-chai": "^4.0.1",
+    "sonar-scanner": "^3.1.0",
     "vitest": "^4.0.18"
   }
 }

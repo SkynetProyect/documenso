@@ -1,0 +1,130 @@
+pipeline{
+    agent any
+    environment{
+        SONAR_TOKEN="${documenso_SONAR_TOKEN}"
+        SONAR_URL="${sonarqube_url}"
+    }
+    stages{
+        stage('limpiar repositorio'){
+            steps{
+                echo 'Limpiando archivos viejos'
+                sh 'rm -rf *'
+            }
+        }
+        stage('clonar repositorio'){
+            steps{
+                echo 'Clonando documenso'
+                sh 'git clone https://github.com/SkynetProyect/documenso'
+
+                stash name: 'repositorio', includes: '**'
+            }
+        }
+        stage('generar coverage de pruebas backend'){
+            agent {
+                docker{
+                    image 'node:20'
+                }
+            }
+            steps{
+                unstash 'repositorio'
+
+                dir('documenso'){
+                    sh '''
+                      echo "iniciando instalacion de dependencias"
+                      npm install
+                    '''
+                    dir('packages/lib'){                        
+                        sh '''
+                          echo "iniciando instalacion de dependencias"
+                          npm install
+                        '''
+                        sh '''
+                          echo "ejecutando obtencion del coverage de pruebas"
+                          npm run test -- --coverage || true
+                          '''
+                        
+                    }
+                }
+                stash name: 'backend', includes: 'documenso/**'
+
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            agent {
+                docker {
+                  image 'sonarsource/sonar-scanner-cli:latest'
+                  args '--network redsonar'
+                }
+              }
+            steps {
+                unstash 'backend'
+                dir('documenso'){
+                    dir('packages/lib'){
+
+                        tool 'SonarScanner'
+                        withSonarQubeEnv('SonarQube') {
+                            sh """
+                            sonar-scanner \
+                            -Dsonar.projectKey=documenso \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=${env.SONAR_URL} \
+                            -Dsonar.login=${env.SONAR_TOKEN}
+                            """
+                        }
+                    }
+                }
+                timeout(time: 5, unit: 'MINUTES') {
+                    script {
+                        def qg = waitForQualityGate()
+        
+                        if (qg.status != 'OK') {
+                            error "❌ Quality Gate falló: ${qg.status}"
+                        }
+        
+                        echo "✅ Quality Gate aprobado: ${qg.status}"
+                        // 🔥 AQUÍ VIENE LO NUEVO
+
+                        def metricsJson = sh(
+                            script: """
+                            curl -s -u ${env.SONAR_TOKEN}: \
+                            "${env.SONAR_URL}/api/measures/component?component=documenso-backend&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density"
+                            """,
+                            returnStdout: true
+                        ).trim()
+
+                        echo "📊 Raw metrics:"
+                        echo metricsJson
+
+                        // Parsear JSON
+                        def json = readJSON text: metricsJson
+
+                        def measures = json.component.measures
+
+                        def coverage = measures.find { it.metric == "coverage" }?.value
+                        def bugs = measures.find { it.metric == "bugs" }?.value
+                        def vulns = measures.find { it.metric == "vulnerabilities" }?.value
+                        def smells = measures.find { it.metric == "code_smells" }?.value
+
+                        echo """
+                        📊 ===== SONARQUBE REPORT =====
+                        Coverage: ${coverage}%
+                        Bugs: ${bugs}
+                        Vulnerabilities: ${vulns}
+                        Code Smells: ${smells}
+                        =================================
+                        """
+
+                        // Guardar reporte
+                        writeFile file: 'sonar-report.json', text: metricsJson
+                        archiveArtifacts artifacts: 'sonar-report.json'
+                
+                    }
+                }
+
+            }
+        }
+
+    }
+
+}
