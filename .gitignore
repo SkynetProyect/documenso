@@ -72,5 +72,15 @@ scripts/bench-*
 # tmp
 tmp/
 
+# test run artifacts
+tests/cypress/screenshots/
+tests/cypress/videos/
+tests/cypress/downloads/
+tests/playwright/test-results/
+tests/playwright/playwright-report/
+tests/stagehand/output/
+tests/deepeval/output/
+tests/playwright/.cucumber-report/
+
 # opencode
 .opencode/package-lock.json
