@@ -1,4 +1,5 @@
 import { createRequire } from 'module';
+import { defineConfig } from 'vitest/config';
 import type { Reporter } from 'vitest/node';
 
 import reportPortalConfig from './reportportal.config.js';
@@ -12,9 +13,9 @@ if (process.env.RP_API_KEY) {
   reporters.push(new RPReporter(reportPortalConfig));
 }
 
-export default {
+export default defineConfig({
   test: {
-    include: ['**/*.test.ts', '**/*.test.js'],
+    include: ['**/*.test.ts'],
     reporters,
     coverage: {
       provider: 'v8',
@@ -22,4 +23,4 @@ export default {
       reportsDirectory: './coverage',
     },
   },
-};
+});

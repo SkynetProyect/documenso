@@ -81,6 +81,7 @@ tests/playwright/playwright-report/
 tests/stagehand/output/
 tests/deepeval/output/
 tests/playwright/.cucumber-report/
+tests/playwright/screenshots/
 
 # opencode
 .opencode/package-lock.json

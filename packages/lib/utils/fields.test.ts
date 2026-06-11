@@ -5,7 +5,7 @@ vi.mock('@documenso/lib/constants/pdf-viewer', () => ({
 }));
 
 vi.mock('@lingui/core/macro', () => ({
-  msg: (strings, ...values) => String.raw({ raw: strings }, ...values),
+  msg: (strings: TemplateStringsArray, ...values: unknown[]) => String.raw({ raw: strings }, ...values),
 }));
 
 vi.mock('@prisma/client', () => ({
@@ -35,44 +35,46 @@ const { validateFieldsInserted } = await import('./fields');
 let scrollIntoViewSpy = vi.fn();
 
 class MockElement {
-  children = [];
+  children: MockElement[] = [];
 
-  attributes = new Map();
+  attributes = new Map<string, string>();
 
   className = '';
 
   id = '';
 
-  dataset = {};
+  dataset: Record<string, string> = {};
 
-  constructor(tagName) {
+  tagName: string;
+
+  constructor(tagName: string) {
     this.tagName = tagName;
   }
 
-  scrollIntoView = (...args) => scrollIntoViewSpy(...args);
+  scrollIntoView = (...args: unknown[]) => scrollIntoViewSpy(...args);
 
-  appendChild(child) {
+  appendChild(child: MockElement) {
     this.children.push(child);
     return child;
   }
 
-  setAttribute(name, value) {
+  setAttribute(name: string, value: string) {
     this.attributes.set(name, value);
   }
 
-  getAttribute(name) {
+  getAttribute(name: string) {
     return this.attributes.get(name) ?? null;
   }
 
-  hasAttribute(name) {
+  hasAttribute(name: string) {
     return this.attributes.has(name);
   }
 
-  removeAttribute(name) {
+  removeAttribute(name: string) {
     this.attributes.delete(name);
   }
 
-  querySelector(selector) {
+  querySelector(selector: string) {
     if (selector === 'div') {
       return this.children.find((child) => child.tagName === 'DIV') ?? null;
     }
@@ -84,15 +86,15 @@ class MockElement {
 class MockDocument {
   body = new MockElement('BODY');
 
-  nodes = [];
+  nodes: MockElement[] = [];
 
-  createElement(tagName) {
+  createElement(tagName: string) {
     const element = new MockElement(tagName.toUpperCase());
     this.nodes.push(element);
     return element;
   }
 
-  querySelector(selector) {
+  querySelector(selector: string) {
     if (selector === PDF_VIEWER_CONTENT_SELECTOR) {
       return this.nodes.find((node) => node.hasAttribute('data-pdf-content')) ?? null;
     }
@@ -104,7 +106,7 @@ class MockDocument {
     return null;
   }
 
-  querySelectorAll(selector) {
+  querySelectorAll(selector: string) {
     if (selector === '.field-card-container') {
       return this.nodes.filter((node) => node.className === 'field-card-container');
     }
@@ -112,11 +114,11 @@ class MockDocument {
     return [];
   }
 
-  getElementsByClassName(className) {
+  getElementsByClassName(className: string) {
     return this.nodes.filter((node) => node.className === className);
   }
 
-  getElementById(id) {
+  getElementById(id: string) {
     return this.nodes.find((node) => node.id === id) ?? null;
   }
 }
@@ -129,32 +131,32 @@ const createField = (overrides = {}) => ({
   ...overrides,
 });
 
-const createFieldCard = (label) => {
-  const element = document.createElement('div');
+const createFieldCard = (label: string) => {
+  const element = document.createElement('div') as unknown as MockElement;
   element.className = 'field-card-container';
   element.dataset.label = label;
-  document.body.appendChild(element);
+  (document as unknown as MockDocument).body.appendChild(element);
   return element;
 };
 
-const createFieldElement = (fieldId) => {
-  const element = document.createElement('div');
+const createFieldElement = (fieldId: number) => {
+  const element = document.createElement('div') as unknown as MockElement;
   element.id = `field-${fieldId}`;
-  document.body.appendChild(element);
+  (document as unknown as MockDocument).body.appendChild(element);
   return element;
 };
 
 const createPdfContent = () => {
-  const element = document.createElement('div');
+  const element = document.createElement('div') as unknown as MockElement;
   element.setAttribute('data-pdf-content', 'true');
-  document.body.appendChild(element);
+  (document as unknown as MockDocument).body.appendChild(element);
   return element;
 };
 
 describe('validateFieldsInserted', () => {
   beforeEach(() => {
     const documentMock = new MockDocument();
-    globalThis.document = documentMock;
+    globalThis.document = documentMock as unknown as Document;
     scrollIntoViewSpy = vi.fn();
   });
 
@@ -170,7 +172,7 @@ describe('validateFieldsInserted', () => {
     const result = validateFieldsInserted([
       createField({ id: 1, inserted: true }),
       createField({ id: 2, inserted: true }),
-    ]);
+    ] as never);
 
     // Assert: validation succeeds, the signal is cleared, and no scroll occurs.
     expect(result).toBe(true);
@@ -191,13 +193,13 @@ describe('validateFieldsInserted', () => {
     createFieldElement(firstPendingField.id);
 
     // Act: execute validation with the fields intentionally ordered out of position.
-    const result = validateFieldsInserted([secondPendingField, firstPendingField]);
+    const result = validateFieldsInserted([secondPendingField, firstPendingField] as never);
 
     // Assert: the fields are marked, the PDF signal remains active, and the first pending field is scrolled into view.
     expect(result).toBe(false);
     expect(pdfContent.getAttribute('data-validate-fields')).toBe('true');
 
-    const fieldCards = document.querySelectorAll('.field-card-container');
+    const fieldCards = (document as unknown as MockDocument).querySelectorAll('.field-card-container');
 
     expect(fieldCards).toHaveLength(2);
     expect(fieldCards[0].getAttribute('data-validate')).toBe('true');
@@ -216,7 +218,7 @@ describe('validateFieldsInserted', () => {
     const pendingField = createField({ id: 33, page: 4, positionY: '120', inserted: false });
 
     // Act: validate while the first pending field is virtualized away.
-    const result = validateFieldsInserted([pendingField]);
+    const result = validateFieldsInserted([pendingField] as never);
 
     // Assert: the helper signals page navigation instead of direct scrolling.
     expect(result).toBe(false);
@@ -232,12 +234,14 @@ describe('validateFieldsInserted', () => {
     const pendingField = createField({ id: 44, page: 7, positionY: '12', inserted: false });
 
     // Act: validate in the defensive branch where the container is unavailable.
-    const result = validateFieldsInserted([pendingField]);
+    const result = validateFieldsInserted([pendingField] as never);
 
     // Assert: the helper still blocks completion and does not try to scroll by page.
     expect(result).toBe(false);
     expect(document.querySelector(PDF_VIEWER_CONTENT_SELECTOR)).toBeNull();
-    expect(document.querySelector('.field-card-container').getAttribute('data-validate')).toBe('true');
+    expect(
+      (document as unknown as MockDocument).querySelector('.field-card-container')?.getAttribute('data-validate'),
+    ).toBe('true');
     expect(scrollIntoViewSpy).not.toHaveBeenCalled();
   });
 
@@ -256,12 +260,13 @@ describe('validateFieldsInserted', () => {
     const pendingField = createField({ id: 55, page: 2, positionY: '50', inserted: false });
 
     const originalFilter = Array.prototype.filter;
-    Array.prototype.filter = function (...args) {
-      const result = originalFilter.apply(this, args);
+
+    Array.prototype.filter = function (this: unknown[], ...args: Parameters<typeof originalFilter>): unknown[] {
+      const result = originalFilter.apply(this, args) as unknown[];
 
       // Only hijack the `fields.filter(...)` call (Field objects expose `inserted`),
       // leave DOM-node filtering (e.g. `document.getElementsByClassName`) untouched.
-      const isFieldsArray = result.length > 0 && Object.hasOwn(result[0], 'inserted');
+      const isFieldsArray = result.length > 0 && Object.hasOwn(result[0] as object, 'inserted');
 
       return isFieldsArray ? [undefined] : result;
     };
@@ -270,7 +275,7 @@ describe('validateFieldsInserted', () => {
 
     try {
       // Act: validate while `uninsertedFields[0]` resolves to `null`.
-      result = validateFieldsInserted([pendingField]);
+      result = validateFieldsInserted([pendingField] as never);
     } finally {
       Array.prototype.filter = originalFilter;
     }
