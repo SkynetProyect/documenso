@@ -5,8 +5,8 @@
  */
 module.exports = {
   apiKey: process.env.RP_API_KEY,
-  endpoint: process.env.RP_ENDPOINT ?? 'https://reportportal.example.com/api/v1',
-  project: process.env.RP_PROJECT ?? 'documenso',
+  endpoint: process.env.RP_ENDPOINT ?? 'http://localhost:8080/api/v1',
+  project: process.env.RP_PROJECT ?? 'default_personal',
   launch: 'documenso-lib-unit-tests',
   attributes: [
     { key: 'package', value: '@documenso/lib' },

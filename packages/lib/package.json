@@ -77,7 +77,7 @@
   },
   "devDependencies": {
     "@playwright/browser-chromium": "1.56.1",
-    "@reportportal/agent-js-vitest": "^5.2.2",
+    "@reportportal/client-javascript": "^5.5.11",
     "@types/chai": "^5.2.3",
     "@types/chai-as-promised": "^8.0.2",
     "@types/luxon": "^3.7.1",

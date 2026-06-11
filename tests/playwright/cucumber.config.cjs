@@ -4,8 +4,8 @@
 // "default" profile and causes requireModule/require/paths/etc to be silently ignored.
 const reportPortalConfig = {
   apiKey: process.env.RP_API_KEY ?? '',
-  endpoint: process.env.RP_ENDPOINT ?? 'https://reportportal.example.com/api/v1',
-  project: process.env.RP_PROJECT ?? 'documenso',
+  endpoint: process.env.RP_ENDPOINT ?? 'http://localhost:8080/api/v1',
+  project: process.env.RP_PROJECT ?? 'default_personal',
   launch: 'documenso-e2e-screenplay',
   attributes: [{ key: 'suite', value: 'validacion-campos-insertados' }],
   description: 'Serenity/JS + Cucumber BDD suite for Documenso e2e flows',

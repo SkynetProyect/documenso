@@ -1,16 +1,13 @@
-import { createRequire } from 'module';
 import { defineConfig } from 'vitest/config';
 import type { Reporter } from 'vitest/node';
 
 import reportPortalConfig from './reportportal.config.js';
-
-const require = createRequire(import.meta.url);
+import { ReportPortalVitestReporter } from './reportportal-vitest-reporter';
 
 const reporters: Array<'default' | Reporter> = ['default'];
 
 if (process.env.RP_API_KEY) {
-  const RPReporter = require('@reportportal/agent-js-vitest');
-  reporters.push(new RPReporter(reportPortalConfig));
+  reporters.push(new ReportPortalVitestReporter(reportPortalConfig));
 }
 
 export default defineConfig({
