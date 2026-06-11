@@ -88,7 +88,7 @@ pipeline{
                         def metricsJson = sh(
                             script: """
                             curl -s -u ${env.SONAR_TOKEN}: \
-                            "${env.SONAR_URL}/api/measures/component?component=documenso-backend&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density"
+                            "${env.SONAR_URL}/api/measures/component?component=documenso&metricKeys=coverage,bugs,vulnerabilities,code_smells,duplicated_lines_density"
                             """,
                             returnStdout: true
                         ).trim()

@@ -1,12 +1,5 @@
-import * as chai from 'chai';
-import { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
 import * as sinon from 'sinon';
-import sinonChai from 'sinon-chai';
-import { beforeEach, describe, it, vi } from 'vitest';
-
-chai.use(chaiAsPromised);
-chai.use(sinonChai);
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ─── vi.mock calls first — no external variable references inside factories ──
 
@@ -217,16 +210,20 @@ describe('seal-document handler integration', () => {
       } as any,
     });
 
-    expect(mockPrisma.recipient.updateMany).to.have.been.calledOnce;
-    expect(mockTriggerWebhook).to.have.been.calledOnce;
-    expect(mockTriggerWebhook).to.have.been.calledWithMatch({
-      event: 'DOCUMENT_COMPLETED',
-    });
-    expect(mockTriggerJob).to.have.been.calledOnce;
-    expect(mockTriggerJob).to.have.been.calledWithMatch({
-      name: 'send.document.completed.emails',
-      payload: { envelopeId: 'env-1' },
-    });
+    expect(mockPrisma.recipient.updateMany).toHaveBeenCalledOnce();
+    expect(mockTriggerWebhook).toHaveBeenCalledOnce();
+    expect(mockTriggerWebhook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'DOCUMENT_COMPLETED',
+      }),
+    );
+    expect(mockTriggerJob).toHaveBeenCalledOnce();
+    expect(mockTriggerJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'send.document.completed.emails',
+        payload: expect.objectContaining({ envelopeId: 'env-1' }),
+      }),
+    );
   });
 
   it('I-02 - does not send completed email when sendEmail is false', async () => {
@@ -256,6 +253,6 @@ describe('seal-document handler integration', () => {
       } as any,
     });
 
-    expect(mockTriggerJob).to.not.have.been.called;
+    expect(mockTriggerJob).not.toHaveBeenCalled();
   });
 });
