@@ -1,19 +1,17 @@
 const { Stagehand } = require('@browserbasehq/stagehand');
-const playwright = require('playwright');
+const path = require('path');
 const assert = require('assert');
 
 (async () => {
   const stagehand = new Stagehand({
     env: 'LOCAL',
     model: {
-      modelName: 'ollama/qwen3.5:2b',
-      apiKey: 'ollama',
-      baseURL: 'http://localhost:11434/api',
+      modelName: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+      apiKey: process.env.OPENROUTER_API_KEY,
     },
   });
 
   await stagehand.init();
-  console.log(stagehand.modelName);
   const page = [...stagehand.ctx.pagesByTarget.values()][0];
 
   console.log('1');
