@@ -80,6 +80,8 @@ tests/playwright/test-results/
 tests/playwright/playwright-report/
 tests/stagehand/output/
 tests/deepeval/output/
+tests/deepeval/__pycache__/
+.pytest_cache/
 tests/playwright/.cucumber-report/
 tests/playwright/screenshots/
 

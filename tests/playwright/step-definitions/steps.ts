@@ -8,7 +8,9 @@ import { Navigate } from '../interactions/Navigate';
 import { AtributoDelElemento } from '../questions/AtributoDelElemento';
 import { EsVisible } from '../questions/EsVisible';
 import { ExisteElementoConAtributo } from '../questions/ExisteElementoConAtributo';
+import { TextoDelElemento } from '../questions/TextoDelElemento';
 import { UrlActual } from '../questions/UrlActual';
+import { AbrirDocumentoRechazado } from '../tasks/AbrirDocumentoRechazado';
 import { CapturarVisual } from '../tasks/CapturarVisual';
 import { ConfigurarSobre } from '../tasks/ConfigurarSobre';
 import { FirmarDocumento } from '../tasks/FirmarDocumento';
@@ -26,6 +28,7 @@ const password = 'Clave1234**A';
 
 let browser: Browser;
 let usuario: ReturnType<typeof Usuario>;
+let ultimoMotivoRechazo = '';
 
 Before(async () => {
   browser = await chromium.launch({ headless: true });
@@ -75,12 +78,39 @@ Then('el documento debería quedar marcado como firmado', async () => {
 });
 
 When('Usuario rechaza el documento con motivo {string}', async (motivo) => {
+  ultimoMotivoRechazo = motivo;
   await usuario.attemptsTo(RechazarDocumento.porMotivo(motivo));
 });
 
 Then('el documento debería quedar marcado como rechazado', async () => {
   const currentUrl = await usuario.answer(UrlActual.valor());
-  assert.ok(!currentUrl.includes('/sign'), `Se esperaba que la página ya no sea /sign, encontrada ${currentUrl}`);
+  assert.ok(currentUrl.includes('/rejected'), `Se esperaba que la URL contenga /rejected, encontrada ${currentUrl}`);
+});
+
+// --- Sello de rechazo (caja negra sobre addRejectionStampToPdf) ---
+
+When('Usuario abre el documento rechazado desde la lista de documentos', async () => {
+  await usuario.attemptsTo(AbrirDocumentoRechazado.masReciente());
+});
+
+Then('la lista de documentos debe mostrar el estado {string} para el documento más reciente', async (estado) => {
+  await usuario.attemptsTo(Navigate.to('/t/kbudzsciukycrosn/documents'));
+
+  const fila = await usuario.answer(TextoDelElemento.del('table tbody tr:first-child'));
+  assert.ok(fila.includes(estado), `Se esperaba el estado "${estado}" en la primera fila, encontrado: ${fila}`);
+});
+
+Then('el PDF debe mostrar el sello {string}', async (texto) => {
+  const visible = await usuario.answer(EsVisible.el(`text="${texto}"`));
+  assert.ok(visible, `Se esperaba ver el sello "${texto}" en el PDF`);
+});
+
+Then('el PDF no debe mostrar el motivo del rechazo como sello', async () => {
+  const cuerpo = await usuario.answer(TextoDelElemento.del('body'));
+  assert.ok(
+    !cuerpo.includes(ultimoMotivoRechazo),
+    `El motivo de rechazo "${ultimoMotivoRechazo}" no debería aparecer como sello en el PDF`,
+  );
 });
 
 // --- Validación de campos insertados (caja negra sobre validateFieldsInserted) ---
